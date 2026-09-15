@@ -6,95 +6,383 @@
 
     <title>ML Hardware</title>
 
+    <!-- Markdown renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Sanitizer for rendered Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
+            margin: 0;
             font-family: Arial, sans-serif;
+            background: #ffffff;
+            color: #222;
+        }
+
+        header {
+            border-bottom: 1px solid #ddd;
+            padding: 20px 30px;
+            position: sticky;
+            top: 0;
+            background: white;
+            z-index: 10;
+        }
+
+        header h1 {
+            margin: 0 0 5px 0;
+            font-size: 24px;
+        }
+
+        header p {
+            margin: 0;
+            color: #666;
+        }
+
+        nav {
+            margin-top: 15px;
+        }
+
+        nav button {
+            border: 1px solid #ccc;
+            background: white;
+            padding: 8px 16px;
+            margin-right: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        nav button:hover {
+            background: #f2f2f2;
+        }
+
+        main {
             max-width: 900px;
             margin: 0 auto;
             padding: 40px 20px;
-            line-height: 1.6;
         }
 
-        h1 {
-            margin-bottom: 5px;
+        #content {
+            line-height: 1.7;
         }
 
-        .subtitle {
-            color: #666;
+        #content h1 {
+            font-size: 34px;
             margin-top: 0;
         }
 
-        .section {
-            border: 1px solid #ddd;
+        #content h2 {
+            margin-top: 40px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+        }
+
+        #content h3 {
+            margin-top: 30px;
+        }
+
+        #content img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 25px auto;
+        }
+
+        #content pre {
+            background: #f5f5f5;
+            padding: 16px;
             border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
+            overflow-x: auto;
         }
 
-        a {
-            text-decoration: none;
+        #content code {
+            font-family: monospace;
         }
 
-        a:hover {
-            text-decoration: underline;
+        #content :not(pre) > code {
+            background: #f1f1f1;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+
+        #content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        #content th,
+        #content td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        #content th {
+            background: #f5f5f5;
+        }
+
+        #content blockquote {
+            border-left: 4px solid #ccc;
+            margin-left: 0;
+            padding-left: 20px;
+            color: #666;
+        }
+
+        #loading {
+            color: #666;
+        }
+
+        #error {
+            color: #b00020;
+            white-space: pre-wrap;
         }
     </style>
 </head>
 
 <body>
 
+<header>
     <h1>ML Hardware</h1>
 
-    <p class="subtitle">
+    <p>
         Hardware fundamentals for Machine Learning Engineers.
     </p>
 
-    <p>
-        A practical guide to understanding what happens inside CPUs,
-        GPUs and TPUs, and how hardware affects ML training, inference,
-        performance and cost.
-    </p>
+    <nav>
+        <button onclick="loadMarkdown('README.md')">
+            Home
+        </button>
 
-    <div class="section">
-        <h2>CPU</h2>
-        <p>
-            Understand how CPUs work, how they execute instructions,
-            and why cores, threads, cache and memory matter in ML systems.
-        </p>
-        <a href="CPU/cpu-overview.md">Learn about CPU →</a>
+        <button onclick="loadMarkdown('CPU/cpu-overview.md')">
+            CPU
+        </button>
+
+        <button onclick="loadMarkdown('GPU/gpu-overview.md')">
+            GPU
+        </button>
+
+        <button onclick="loadMarkdown('TPU/tpu-overview.md')">
+            TPU
+        </button>
+    </nav>
+</header>
+
+
+<main>
+
+    <div id="loading">
+        Loading...
     </div>
 
-    <div class="section">
-        <h2>GPU</h2>
-        <p>
-            Understand GPU architecture, parallel computing, CUDA cores,
-            Tensor Cores, memory, kernels and GPU inference.
-        </p>
-        <a href="GPU/gpu-overview.md">Learn about GPU →</a>
-    </div>
+    <div id="error"></div>
 
-    <div class="section">
-        <h2>TPU</h2>
-        <p>
-            Understand what TPUs are, why they were built for machine
-            learning, and how they differ from CPUs and GPUs.
-        </p>
-        <a href="TPU/tpu-overview.md">Learn about TPU →</a>
-    </div>
+    <article id="content"></article>
 
-    <div class="section">
-        <h2>Goal</h2>
-        <p>
-            The goal is not to become a hardware engineer.
-            The goal is to understand enough hardware to make better
-            ML engineering decisions.
-        </p>
+</main>
 
-        <p>
-            Better hardware choices, faster inference, better resource
-            utilization and lower infrastructure cost.
-        </p>
-    </div>
+
+<script>
+
+    const content = document.getElementById("content");
+    const loading = document.getElementById("loading");
+    const error = document.getElementById("error");
+
+
+    /*
+     * Convert relative paths inside Markdown
+     * to paths relative to the Markdown file.
+     *
+     * Example:
+     *
+     * CPU/cpu-overview.md
+     *
+     * image:
+     * cpu-arch.png
+     *
+     * becomes:
+     *
+     * CPU/cpu-arch.png
+     */
+    function resolvePath(path, markdownFile) {
+
+        if (!path) {
+            return path;
+        }
+
+        // Do not modify external URLs
+        if (
+            path.startsWith("http://") ||
+            path.startsWith("https://") ||
+            path.startsWith("//") ||
+            path.startsWith("#") ||
+            path.startsWith("data:")
+        ) {
+            return path;
+        }
+
+        const directory = markdownFile.substring(
+            0,
+            markdownFile.lastIndexOf("/") + 1
+        );
+
+        return directory + path;
+    }
+
+
+    async function loadMarkdown(file) {
+
+        loading.style.display = "block";
+        error.textContent = "";
+        content.innerHTML = "";
+
+        try {
+
+            const response = await fetch(file);
+
+            if (!response.ok) {
+                throw new Error(
+                    "Could not load " + file +
+                    " (HTTP " + response.status + ")"
+                );
+            }
+
+            const markdown = await response.text();
+
+            /*
+             * Configure Markdown renderer
+             */
+            marked.setOptions({
+                gfm: true,
+                breaks: false
+            });
+
+
+            /*
+             * Convert Markdown → HTML
+             */
+            let html = marked.parse(markdown);
+
+
+            /*
+             * Fix images and links so that they work
+             * from the Markdown file's own directory.
+             */
+            const temp = document.createElement("div");
+
+            temp.innerHTML = html;
+
+
+            // Fix images
+            temp.querySelectorAll("img").forEach(img => {
+
+                const src = img.getAttribute("src");
+
+                if (src) {
+                    img.setAttribute(
+                        "src",
+                        resolvePath(src, file)
+                    );
+                }
+
+            });
+
+
+            // Fix links
+            temp.querySelectorAll("a").forEach(link => {
+
+                const href = link.getAttribute("href");
+
+                if (!href) {
+                    return;
+                }
+
+                /*
+                 * Markdown files should be rendered
+                 * through this same page.
+                 */
+                if (href.endsWith(".md")) {
+
+                    const resolved = resolvePath(href, file);
+
+                    link.href = "#";
+
+                    link.onclick = function(event) {
+
+                        event.preventDefault();
+
+                        loadMarkdown(resolved);
+
+                    };
+
+                }
+
+                /*
+                 * Normal external links
+                 */
+                else if (
+                    href.startsWith("http://") ||
+                    href.startsWith("https://")
+                ) {
+
+                    link.target = "_blank";
+                    link.rel = "noopener noreferrer";
+
+                }
+
+            });
+
+
+            /*
+             * Sanitize the generated HTML
+             */
+            content.innerHTML = DOMPurify.sanitize(
+                temp.innerHTML
+            );
+
+
+            loading.style.display = "none";
+
+            /*
+             * Scroll to top when changing pages
+             */
+            window.scrollTo({
+                top: 0,
+                behavior: "smooth"
+            });
+
+        }
+
+        catch (err) {
+
+            loading.style.display = "none";
+
+            error.textContent =
+                "Error loading Markdown:\n\n" +
+                err.message;
+
+        }
+
+    }
+
+
+    /*
+     * Load CPU by default.
+     *
+     * Change this to:
+     *
+     * loadMarkdown("README.md")
+     *
+     * if you want the homepage to show README instead.
+     */
+    loadMarkdown("CPU/cpu-overview.md");
+
+</script>
 
 </body>
 </html>
